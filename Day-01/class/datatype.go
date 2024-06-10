@@ -29,8 +29,10 @@ func main(){
 	// interface
 
 
-
-
-
-
+	// OPERATORS
+	// arthemtic:= +,-,*,/,%
+	// relational:= >,<,>=,<=,==,!=
+	// logical:= && || !
+	// assignments:= =
+	// unary operator:= ++,--(only post increment supported)
 }

@@ -14,4 +14,6 @@ func main()  {
 	*Nishanth_Pointer="Nishanth Dmello"
 	fmt.Println(Employee1,Employee2,Employee3)
 
+	//go doesnt support pointer arthmetic
+
 }

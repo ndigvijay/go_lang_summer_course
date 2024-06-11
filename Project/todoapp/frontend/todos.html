@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todos - Todo App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .todo-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .todo-item {
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+        }
+        .todo-item button {
+            background-color: #dc3545;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Todos</h1>
+        <form id="todo-form">
+            <input type="text" id="todo-text" placeholder="Todo Text" required>
+            <button type="submit">Add Todo</button>
+        </form>   
+        <button id="get-todos-btn">Get Todos</button> 
+        <ul id="todo-list" class="todo-list"></ul>
+        
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            if (!localStorage.getItem('jwt')) {
+                window.location.href = 'login.html';
+            }
+            // loadTodos();
+        });
+
+        document.getElementById('todo-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = document.getElementById('todo-text').value;
+
+            const response = await fetch('http://localhost:8000/todos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': localStorage.getItem('jwt')
+                },
+                body: JSON.stringify({ text })
+            });
+
+            if (response.ok) {
+                // loadTodos();
+            } else {
+                alert('Error creating todo');
+            }
+        });
+
+        document.getElementById('get-todos-btn').addEventListener('click', () => {
+            loadTodos(); // Call loadTodos function when the button is clicked
+        });
+
+        async function loadTodos() {
+        const response = await fetch('http://localhost:8000/todos', {
+            method: 'GET',
+            headers: {
+                'Authorization': localStorage.getItem('jwt')
+            }
+        });
+
+        if (response.ok) {
+            const todosResponse = await response.json();
+            const todos = todosResponse.todos; // Access the 'todos' array
+            console.log(todos, todos[0]);
+            // const todoList = document.getElementById('todo-list');
+            // todoList.innerHTML = '';
+            const htmlStrings = todos.map((todo) => {
+            return `<p>${todo.Text}</p>`;
+        });
+            const combinedHtml = htmlStrings.join('');
+            const todoList = document.getElementById('todo-list');
+            todoList.innerHTML = combinedHtml;
+
+        } else {
+            alert('Error loading todos');
+        }
+    }
+
+
+        async function deleteTodo(id) {
+            const response = await fetch(`http://localhost:8000/todos/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': localStorage.getItem('jwt')
+                }
+            });
+
+            if (response.ok) {
+                loadTodos();
+            } else {
+                alert('Error deleting todo');
+            }
+        }
+    </script>
+</body>
+</html>

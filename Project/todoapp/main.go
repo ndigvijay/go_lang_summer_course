@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 	"time"
-
+	"github.com/rs/cors"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
@@ -79,8 +79,18 @@ func main() {
 	r.HandleFunc("/todos/{id}", UpdateTodo).Methods("PUT")
 	r.HandleFunc("/todos/{id}", DeleteTodo).Methods("DELETE")
 
-	log.Println("Server is running...")
-	log.Fatal(http.ListenAndServe(":8000", r))
+	// Add CORS middleware
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, 
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
+	})
+
+	handler := c.Handler(r)
+
+	log.Println("Server is running in port 8000")
+	log.Fatal(http.ListenAndServe(":8000", handler))
 }
 
 func Signup(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +142,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expirationTime := time.Now().Add(24 * time.Hour)
+	fmt.Println(creds)
 	claims := &Claims{
 		Username: creds.Username,
 		StandardClaims: jwt.StandardClaims{
@@ -145,6 +156,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	
 
 	w.Header().Set("Content-Type", "application/json")
 	// json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
@@ -196,28 +208,14 @@ func CreateTodo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+type Response struct {
+    Todos []Todo `json:"todos"`
+}
 func GetTodos(w http.ResponseWriter, r *http.Request) {
     log.Println("Get request sent to /todos")
-    tokenStr := r.Header.Get("Authorization")
-    log.Println("Token:", tokenStr)
-    if tokenStr == "" {
-        w.WriteHeader(http.StatusUnauthorized)
-        return
-    }
 
-    claims := &Claims{}
-    token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-        return jwtKey, nil
-    })
-    if err != nil || !token.Valid {
-        log.Println("Token validation failed:", err)
-        w.WriteHeader(http.StatusUnauthorized)
-        return
-    }
-
-    // log.Println("UserID:", claims.ID.Hex()) // Assuming UserID is stored as an ObjectID in MongoDB
     collection := client.Database("todoapp").Collection("todos")
-    cursor, err := collection.Find(context.TODO(), bson.M{"user_id": claims.ID})
+    cursor, err := collection.Find(context.TODO(), bson.M{})
     if err != nil {
         log.Println("Error querying todos:", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -231,12 +229,18 @@ func GetTodos(w http.ResponseWriter, r *http.Request) {
         cursor.Decode(&todo)
         todos = append(todos, todo)
     }
+    log.Println(todos)
 
-    // json.NewEncoder(w).Encode(todos)
-	w.WriteHeader(http.StatusOK)
-    jsonResponse := map[string]string{"message": "User created successfully"}
-    json.NewEncoder(w).Encode(jsonResponse)
+    response := Response{Todos: todos}
+
+    w.WriteHeader(http.StatusOK)
+    if err := json.NewEncoder(w).Encode(response); err != nil {
+        log.Println("Error encoding JSON:", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
 }
+
 
 
 func UpdateTodo(w http.ResponseWriter, r *http.Request) {

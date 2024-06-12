@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"go-lang.org/x/sync/semaphore"
+)
+	
 
 func main(){
 	fmt.Println("semaphores")
@@ -22,10 +26,12 @@ func main(){
 	// semaphores are also binary-unlock unlock but with certain conditions without ownership contraints
 	// use case: specific number of 
 
-	summary:
-	mutex: one thread-one mutexconst
+	// summary:
+	// mutex: one thread-one mutexconst
 
-	samphores:count of available resources
-	mulitple thread can access a single thread  a limited amount of resources simultanously
+	// samphores:count of available resources
+	// mulitple thread can access a single thread  a limited amount of resources simultanously
+		//include a package called go-lang.org
+		//importing it
 
 }

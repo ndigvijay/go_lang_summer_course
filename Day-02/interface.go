@@ -1,4 +1,4 @@
-package main 
+package main
 
 import "fmt"
 
@@ -10,4 +10,5 @@ func main() {
 	fmt.Println(s, ok)
 	y, ok := i.(float32)
 	fmt.Println(y, ok)
+
 }

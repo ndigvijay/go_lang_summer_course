@@ -55,52 +55,55 @@
             background-color: #dc3545;
             margin-left: 10px;
         }
+        .logout {
+            display: flex;
+            background-color: red;
+            justify-content: end;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Todos</h1>
-        <form id="todo-form">
-            <input type="text" id="todo-text" placeholder="Todo Text" required>
-            <button type="submit">Add Todo</button>
-        </form>   
-        <button id="get-todos-btn">Get Todos</button> 
-        <ul id="todo-list" class="todo-list"></ul>
-        
-    </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', (event) => {
-            if (!localStorage.getItem('jwt')) {
-                window.location.href = 'login.html';
-            }
+<button onclick="logout()" class="logout">Logout</button>
+<div class="container">
+    <h1>Todos</h1>
+    <button id="get-todos-btn" onclick="loadTodos()">Get Todos</button>
+    <form id="todo-form">
+        <input type="text" id="todo-text" placeholder="Todo Text" required>
+        <button type="submit">Add Todo</button>
+    </form>
+    <ul id="todo-list" class="todo-list"></ul>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        if (!localStorage.getItem('jwt')) {
+            window.location.href = 'login.html';
+        }
+    });
+
+    document.getElementById('todo-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = document.getElementById('todo-text').value;
+
+        const response = await fetch('http://localhost:8000/todos', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('jwt')
+            },
+            body: JSON.stringify({ text })
+        });
+
+        if (response.ok) {
+            alert("Todo added successfully");
             // loadTodos();
-        });
+        } else {
+            alert('Error creating todo');
+        }
+    });
 
-        document.getElementById('todo-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const text = document.getElementById('todo-text').value;
+    document.getElementById('get-todos-btn').addEventListener('click', loadTodos);
 
-            const response = await fetch('http://localhost:8000/todos', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': localStorage.getItem('jwt')
-                },
-                body: JSON.stringify({ text })
-            });
-
-            if (response.ok) {
-                // loadTodos();
-            } else {
-                alert('Error creating todo');
-            }
-        });
-
-        document.getElementById('get-todos-btn').addEventListener('click', () => {
-            loadTodos(); // Call loadTodos function when the button is clicked
-        });
-
-        async function loadTodos() {
+    async function loadTodos() {
         const response = await fetch('http://localhost:8000/todos', {
             method: 'GET',
             headers: {
@@ -110,37 +113,56 @@
 
         if (response.ok) {
             const todosResponse = await response.json();
-            const todos = todosResponse.todos; // Access the 'todos' array
-            console.log(todos, todos[0]);
-            // const todoList = document.getElementById('todo-list');
-            // todoList.innerHTML = '';
-            const htmlStrings = todos.map((todo) => {
-            return `<p>${todo.Text}</p>`;
-        });
-            const combinedHtml = htmlStrings.join('');
+            const todos = todosResponse.todos; // Adjust to access the correct structure
             const todoList = document.getElementById('todo-list');
-            todoList.innerHTML = combinedHtml;
+            todoList.innerHTML = '';
 
-        } else {
+            // Use map to generate HTML strings for each todo item
+            const todoItems = todos.map(todo => {
+                return `<li class="todo-item">
+                        <span>${todo.Text}</span> <!-- Adjust to access the correct property -->
+<!--                        <p>${todo.ID}</p>-->
+                        <button onclick="deleteTodo('${todo.ID}')">Done</button>
+                    </li>`;
+            }).join(""); // Join the array of strings into a single string
+
+            // Insert the generated HTML into the todo list
+            todoList.innerHTML += todoItems;
+        }
+
+        else {
             alert('Error loading todos');
         }
     }
-
-
-        async function deleteTodo(id) {
-            const response = await fetch(`http://localhost:8000/todos/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': localStorage.getItem('jwt')
-                }
-            });
-
-            if (response.ok) {
-                loadTodos();
-            } else {
-                alert('Error deleting todo');
+    //delete function
+    async function deleteTodo(id) {
+        const response = await fetch(`http://localhost:8000/todos/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': localStorage.getItem('jwt')
             }
+        });
+
+        if (response.ok) {
+            alert('Todo deleted successfully');
+            loadTodos();
+        } else {
+            alert('Error deleting todo');
         }
-    </script>
+    }
+
+    function logout() {
+        localStorage.clear();
+        alert("Logged out");
+        window.location.href = "login.html";
+    }
+
+
+    // function logout() {
+    //     localStorage.clear();
+    //     alert("Logged out");
+    //     window.location.href = "login.html";
+    // }
+</script>
 </body>
 </html>

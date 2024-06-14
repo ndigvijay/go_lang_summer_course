@@ -1,22 +1,21 @@
 package main
 
 import (
-	"fmt"
 	"context"
 	"encoding/json"
-	"log"
-	"net/http"
-	"os"
-	"time"
-	"github.com/rs/cors"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
+	"github.com/rs/cors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
-	"github.com/joho/godotenv"
+	"log"
+	"net/http"
+	"os"
+	"time"
 )
 
 var client *mongo.Client
@@ -29,21 +28,20 @@ type Credentials struct {
 
 type Claims struct {
 	Username string `json:"username"`
-	ID       string `json:"id"`
+	ID       string `json:"id"` // Add this line
 	jwt.StandardClaims
 }
 
-
 type User struct {
 	ID       primitive.ObjectID `bson:"_id,omitempty"`
-	Username string             `bson:"username,omitempty"`
-	Password string             `bson:"password,omitempty"`
+	Username string
+	Password string
 }
 
 type Todo struct {
 	ID     primitive.ObjectID `bson:"_id,omitempty"`
-	Text   string             `bson:"text,omitempty"`
-	UserID primitive.ObjectID `bson:"user_id,omitempty"`
+	Text   string
+	UserID primitive.ObjectID
 }
 
 func main() {
@@ -76,12 +74,11 @@ func main() {
 	r.HandleFunc("/login", Login).Methods("POST")
 	r.HandleFunc("/todos", CreateTodo).Methods("POST")
 	r.HandleFunc("/todos", GetTodos).Methods("GET")
-	r.HandleFunc("/todos/{id}", UpdateTodo).Methods("PUT")
 	r.HandleFunc("/todos/{id}", DeleteTodo).Methods("DELETE")
 
 	// Add CORS middleware
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"}, 
+		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
@@ -116,8 +113,8 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-    jsonResponse := map[string]string{"message": "User created successfully"}
-    json.NewEncoder(w).Encode(jsonResponse)
+	jsonResponse := map[string]string{"message": "User created successfully"}
+	json.NewEncoder(w).Encode(jsonResponse)
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
@@ -142,9 +139,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expirationTime := time.Now().Add(24 * time.Hour)
-	fmt.Println(creds)
 	claims := &Claims{
 		Username: creds.Username,
+		ID:       user.ID.Hex(),
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 		},
@@ -156,14 +153,10 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	
 
 	w.Header().Set("Content-Type", "application/json")
-	// json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
-	fmt.Println(tokenString)
-	w.WriteHeader(http.StatusOK)
-    jsonResponse := map[string]string{"message": "User logged in successfully","jwt":tokenString}
-    json.NewEncoder(w).Encode(jsonResponse)
+	jsonResponse := map[string]string{"message": "User logged in successfully", "jwt": tokenString}
+	json.NewEncoder(w).Encode(jsonResponse)
 }
 
 func CreateTodo(w http.ResponseWriter, r *http.Request) {
@@ -189,15 +182,13 @@ func CreateTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := client.Database("todoapp").Collection("users")
-	var user User
-	err = collection.FindOne(context.TODO(), bson.M{"username": claims.Username}).Decode(&user)
+	userID, err := primitive.ObjectIDFromHex(claims.ID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	todo.UserID = user.ID
+	todo.UserID = userID
 	todosCollection := client.Database("todoapp").Collection("todos")
 	_, err = todosCollection.InsertOne(context.TODO(), todo)
 	if err != nil {
@@ -209,118 +200,66 @@ func CreateTodo(w http.ResponseWriter, r *http.Request) {
 }
 
 type Response struct {
-    Todos []Todo `json:"todos"`
+	Todos []Todo `json:"todos"`
 }
+
 func GetTodos(w http.ResponseWriter, r *http.Request) {
-    log.Println("Get request sent to /todos")
-
-    collection := client.Database("todoapp").Collection("todos")
-    cursor, err := collection.Find(context.TODO(), bson.M{})
-    if err != nil {
-        log.Println("Error querying todos:", err)
-        w.WriteHeader(http.StatusInternalServerError)
-        return
-    }
-    defer cursor.Close(context.TODO())
-
-    var todos []Todo
-    for cursor.Next(context.TODO()) {
-        var todo Todo
-        cursor.Decode(&todo)
-        todos = append(todos, todo)
-    }
-    log.Println(todos)
-
-    response := Response{Todos: todos}
-
-    w.WriteHeader(http.StatusOK)
-    if err := json.NewEncoder(w).Encode(response); err != nil {
-        log.Println("Error encoding JSON:", err)
-        w.WriteHeader(http.StatusInternalServerError)
-        return
-    }
-}
-
-
-
-func UpdateTodo(w http.ResponseWriter, r *http.Request) {
-	log.Println("Put request sent to /todos/{id}")
-	vars := mux.Vars(r)
-	idHex := vars["id"]
-	id, err := primitive.ObjectIDFromHex(idHex)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	tokenStr := r.Header.Get("Authorization")
-	if tokenStr == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-	if err != nil || !token.Valid {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	var todo Todo
-	if err := json.NewDecoder(r.Body).Decode(&todo); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	todo.UserID, err = primitive.ObjectIDFromHex(claims.ID)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+	log.Println("Get request sent to /todos")
 
 	collection := client.Database("todoapp").Collection("todos")
-	_, err = collection.UpdateOne(context.TODO(), bson.M{"_id": id}, bson.M{"$set": todo})
+	cursor, err := collection.Find(context.TODO(), bson.M{})
 	if err != nil {
+		log.Println("Error querying todos:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	defer cursor.Close(context.TODO())
+
+	var todos []Todo
+	for cursor.Next(context.TODO()) {
+		var todo Todo
+		cursor.Decode(&todo)
+		todos = append(todos, todo)
+	}
+	log.Println(todos)
+
+	response := Response{Todos: todos}
 
 	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Println("Error encoding JSON:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
-
 
 func DeleteTodo(w http.ResponseWriter, r *http.Request) {
 	log.Println("Delete request sent to /todos/{id}")
+
 	vars := mux.Vars(r)
 	id, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
+		log.Println("Invalid ID format:", vars["id"], err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
-	tokenStr := r.Header.Get("Authorization")
-	if tokenStr == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-	if err != nil || !token.Valid {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	log.Println("Parsed ID:", id)
 
 	collection := client.Database("todoapp").Collection("todos")
-	_, err = collection.DeleteOne(context.TODO(), bson.M{"_id": id, "user_id": claims.ID})
+
+	res, err := collection.DeleteOne(context.TODO(), bson.M{"_id": id})
 	if err != nil {
+		log.Println("Error deleting todo:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
+	if res.DeletedCount == 0 {
+		log.Println("No todo found to delete with id:", id)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	log.Println("Todo deleted successfully with id:", id)
 	w.WriteHeader(http.StatusOK)
 }
